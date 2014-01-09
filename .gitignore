@@ -3,4 +3,7 @@ bin
 .cache
 .metadata
 .worksheet
+.idea
+*.iml
+out
 
