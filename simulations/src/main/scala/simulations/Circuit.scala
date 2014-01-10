@@ -21,6 +21,14 @@ class Wire {
   }
 }
 
+object Wire {
+  def apply(s: Boolean) = {
+    val w = new Wire
+    w.setSignal(s)
+    w
+  }
+}
+
 abstract class CircuitSimulator extends Simulator {
 
   val InverterDelay: Int
@@ -69,7 +77,11 @@ abstract class CircuitSimulator extends Simulator {
   }
   
   def orGate2(a1: Wire, a2: Wire, output: Wire) {
-    ???
+    val notA1, notA2,notOut = new Wire
+    inverter(a1, notA1)
+    inverter(a2, notA2)
+    andGate(notA1, notA2, notOut)
+    inverter(notOut, output)
   }
 
   def demux(in: Wire, c: List[Wire], out: List[Wire]) {
