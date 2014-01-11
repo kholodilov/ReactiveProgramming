@@ -19,6 +19,8 @@ class Wire {
     actions = a :: actions
     a()
   }
+
+  override def toString: String = s"Wire($sigVal)"
 }
 
 object Wire {

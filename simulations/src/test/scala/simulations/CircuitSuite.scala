@@ -5,6 +5,9 @@ import org.scalatest.FunSuite
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.prop.Checkers
+import org.scalacheck.{Shrink, Arbitrary, Gen}
+import org.scalacheck.Arbitrary._
+import org.scalacheck.Prop._
 
 @RunWith(classOf[JUnitRunner])
 class CircuitSuite extends CircuitSimulator with FunSuite with Checkers {
@@ -30,106 +33,6 @@ class CircuitSuite extends CircuitSimulator with FunSuite with Checkers {
     run
     
     assert(out.getSignal === true, "and 3")
-  }
-
-  test("demux without control wires returns input") {
-    val (in, out) = wiresWithProbes2
-    demux(in, List(), List(out))
-    in.setSignal(false)
-    run
-
-    assert(out.getSignal === false)
-
-    in.setSignal(true)
-    run
-
-    assert(out.getSignal === true)
-  }
-
-  test("demux with 1 control wire") {
-    val in, c1, out0, out1 = new Wire
-    probe("in", in)
-    probe("c1", c1)
-    probe("out0", out0)
-    probe("out1", out1)
-    demux(in, List(c1), List(out1, out0))
-
-    in.setSignal(false)
-    c1.setSignal(false)
-    run
-
-    assert(out0.getSignal === false)
-    assert(out1.getSignal === false)
-
-    in.setSignal(true)
-    c1.setSignal(false)
-    run
-
-    assert(out0.getSignal === true)
-    assert(out1.getSignal === false)
-
-    in.setSignal(true)
-    c1.setSignal(true)
-    run
-
-    assert(out0.getSignal === false)
-    assert(out1.getSignal === true)
-
-    in.setSignal(false)
-    c1.setSignal(true)
-    run
-
-    assert(out0.getSignal === false)
-    assert(out1.getSignal === false)
-  }
-
-  test("demux with 2 control wires") {
-    val in, c1, c2, out0, out1, out2, out3 = new Wire
-    probe("in", in)
-    probe("c1", c1)
-    probe("c2", c2)
-    probe("out0", out0)
-    probe("out1", out1)
-    probe("out2", out2)
-    probe("out3", out3)
-    demux(in, List(c2, c1), List(out3, out2, out1, out0))
-    in.setSignal(true)
-
-    c1.setSignal(false)
-    c2.setSignal(false)
-    run
-
-    assert(out0.getSignal === true)
-    assert(out1.getSignal === false)
-    assert(out2.getSignal === false)
-    assert(out3.getSignal === false)
-
-    c1.setSignal(true)
-    c2.setSignal(false)
-    run
-
-    assert(out0.getSignal === false)
-    assert(out1.getSignal === true)
-    assert(out2.getSignal === false)
-    assert(out3.getSignal === false)
-
-    c1.setSignal(false)
-    c2.setSignal(true)
-    run
-
-    assert(out0.getSignal === false)
-    assert(out1.getSignal === false)
-    assert(out2.getSignal === true)
-    assert(out3.getSignal === false)
-
-    c1.setSignal(true)
-    c2.setSignal(true)
-    run
-
-    assert(out0.getSignal === false)
-    assert(out1.getSignal === false)
-    assert(out2.getSignal === false)
-    assert(out3.getSignal === true)
   }
 
   //
@@ -191,6 +94,40 @@ class CircuitSuite extends CircuitSimulator with FunSuite with Checkers {
     }
   }
 
+  test("demux outputs are always false if in is false") {
+    check {
+      (demuxInOut: (Wire, List[Wire], List[Wire])) =>
+        val (in, c, out) = demuxInOut
+        demux(in, c, out)
+        in.setSignal(false)
+
+        run
+
+        (out map { _.getSignal }) == (out map { _ => false })
+    }
+  }
+
+  test("demux output are specified by control signal") {
+    check {
+      (demuxInOut: (Wire, List[Wire], List[Wire])) =>
+        val (in, c, out) = demuxInOut
+        demux(in, c, out)
+        in.setSignal(true)
+
+        val expOutN = controlToNum(c)
+        val expOutSignals = booleanListWithOneTrueValue(expOutN, out.size).reverse
+
+        run
+
+        val outSignals = out map { _.getSignal }
+        println(expOutN)
+        println(outSignals)
+        println(expOutSignals)
+
+        outSignals == expOutSignals
+    }
+  }
+
   def wiresWithProbes2: (Wire, Wire) = {
     val in, out = new Wire
     probe("in", in)
@@ -207,5 +144,42 @@ class CircuitSuite extends CircuitSimulator with FunSuite with Checkers {
 
     (in1, in2, out)
   }
+
+  def controlToNum(c: List[Wire]): Int = {
+    def wireSignalToNum(w: Wire): Int = {
+      if (w.getSignal) 1 else 0
+    }
+    c.reverse match {
+      case Nil => 0
+      case w :: tail =>
+        wireSignalToNum(w) + 2 * controlToNum(tail.reverse)
+    }
+  }
+
+  def booleanListWithOneTrueValue(pos: Int, size: Int): List[Boolean] = {
+    List(
+      (0 until pos) map {
+        _ => false
+      },
+      List(true),
+      ((pos + 1) until size) map {
+        _ => false
+      }).flatten
+  }
+
+  lazy val genWire: Gen[Wire] = for {
+    s <- arbitrary[Boolean]
+  } yield Wire(s)
+
+  lazy val genWireList: Gen[List[Wire]] = Gen.sized { size => Gen.listOfN(size, genWire) }
+  lazy val genDemuxInOut: Gen[(Wire, List[Wire], List[Wire])] = for {
+    in <- genWire
+    c <- genWireList
+    out <- Gen.resize(Math.pow(2, c.size).toInt, genWireList)
+  } yield (in, c, out)
+
+  implicit lazy val arbDemuxInOut: Arbitrary[(Wire, List[Wire], List[Wire])] = Arbitrary(genDemuxInOut)
+  override implicit val generatorDrivenConfig = PropertyCheckConfig(maxSize = 4)
+  implicit val disableDemuxInOutShrink: Shrink[(Wire, List[Wire], List[Wire])] = Shrink(_ => Stream.empty)
 
 }
