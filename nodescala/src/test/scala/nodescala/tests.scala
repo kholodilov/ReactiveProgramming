@@ -13,9 +13,50 @@ import org.scalatest._
 import NodeScala._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import org.scalatest.matchers.ShouldMatchers
 
 @RunWith(classOf[JUnitRunner])
-class NodeScalaSuite extends FunSuite {
+class NodeScalaSuite extends FunSuite with ShouldMatchers {
+
+  test("ensuring returns future with the result of current future if another future also succeeds") {
+    val thisFuture = Future { 123 }
+    val thatFuture = Future { 456 }
+
+    val newFuture = thisFuture.ensuring(thatFuture)
+
+    Await.result(newFuture, 1 second) should equal (123)
+  }
+
+  test("ensuring returns future with error if another future fails") {
+    val exception = new RuntimeException("another future fails")
+    val thisFuture = Future { 123 }
+    val thatFuture = Future { throw exception }
+
+    val newFuture = thisFuture.ensuring(thatFuture)
+
+    Await.result(newFuture.failed, 1 second) should equal (exception)
+  }
+
+  test("ensuring returns future with error if current future fails") {
+    val exception = new RuntimeException("current future fails")
+    val thisFuture = Future { throw exception }
+    val thatFuture = Future { 456 }
+
+    val newFuture = thisFuture.ensuring(thatFuture)
+
+    Await.result(newFuture.failed, 1 second) should equal (exception)
+  }
+
+  test("ensuring returns future with error of another future if both current and another future fail") {
+    val exception1 = new RuntimeException("current future fails")
+    val exception2 = new RuntimeException("another future fails")
+    val thisFuture = Future { throw exception1 }
+    val thatFuture = Future { throw exception2 }
+
+    val newFuture = thisFuture.ensuring(thatFuture)
+
+    Await.result(newFuture.failed, 1 second) should equal (exception2)
+  }
 
   test("A Future should always be created") {
     val always = Future.always(517)

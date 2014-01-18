@@ -14,7 +14,7 @@ package object nodescala {
    */
   implicit class FutureCompanionOps[T](val f: Future.type) extends AnyVal {
 
-    /** Returns a future that is always completed with `value`.
+     /** Returns a future that is always completed with `value`.
      */
     def always[T](value: T): Future[T] = ???
 
@@ -88,6 +88,12 @@ package object nodescala {
      */
     def continue[S](cont: Try[T] => S): Future[S] = ???
 
+    /**
+     * Returns a future that is completed with the value of the current future
+     * if and only if the `that` future is completed successfully. If that is not completed successfully,
+     * the resulting future should be completed with its exception.
+     */
+    def ensuring[S](that: Future[S]): Future[T] = that.flatMap { _ => f }
   }
 
   /** Subscription objects are used to be able to unsubscribe
