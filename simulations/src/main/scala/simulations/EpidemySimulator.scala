@@ -22,6 +22,7 @@ class EpidemySimulator extends Simulator {
 
     val dieRate: Double = 0.25
     val transRate: Double = 0.4
+    val airTrafficRate: Double = 0.01
 
     // to complete: additional parameters of simulation
   }
@@ -58,19 +59,34 @@ class EpidemySimulator extends Simulator {
     }
 
     def performMove {
-      val moves = getFeasibleMoves
-      if (!moves.isEmpty)
+
+      val moved = tryToMove
+
+      if (moved && !infected)
       {
+        val infectiousPersons = personsAt(row, col) filter { p => p.infected }
+        if (!infectiousPersons.isEmpty && random < transRate)
+        {
+          becomeInfected
+        }
+      }
+    }
+
+
+    def tryToMove: Boolean = {
+      val moves = getFeasibleMoves
+      if (random < airTrafficRate) {
+        row = randomBelow(roomRows)
+        col = randomBelow(roomColumns)
+        true
+      }
+      else if (!moves.isEmpty) {
         val randomMove = Random.shuffle(moves).head
         randomMove()
-        if (!infected)
-        {
-          val infectiousPersons = personsAt(row, col) filter { p => p.infected }
-          if (!infectiousPersons.isEmpty && random < transRate)
-          {
-            becomeInfected
-          }
-        }
+        true
+      } else
+      {
+        false
       }
     }
 
