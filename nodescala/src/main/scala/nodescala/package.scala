@@ -16,13 +16,25 @@ package object nodescala {
 
      /** Returns a future that is always completed with `value`.
      */
-    def always[T](value: T): Future[T] = ???
+    def always[T](value: T): Future[T] = {
+      val p = Promise[T]()
+      p.success(value)
+      p.future
+    }
+
+     /** Returns a future that is always fails with exception.
+     */
+    def alwaysFails[T](ex: Throwable): Future[T] = {
+      val p = Promise[T]()
+      p.failure(ex)
+      p.future
+    }
 
     /** Returns a future that is never completed.
      *
      *  This future may be useful when testing if timeout logic works correctly.
      */
-    def never[T]: Future[T] = ???
+    def never[T]: Future[T] = Promise[T]().future
 
     /** Given a list of futures `fs`, returns the future holding the list of values of all the futures from `fs`.
      *  The returned future is completed only once all of the futures in `fs` have been completed.
@@ -44,7 +56,9 @@ package object nodescala {
 
     /** Returns a future with a unit value that is completed after time `t`.
      */
-    def delay(t: Duration): Future[Unit] = ???
+    def delay(t: Duration): Future[Unit] = Future {
+      blocking { Thread.sleep(t.toMillis) }
+    }
 
     /** Completes this future with user input.
      */
@@ -70,7 +84,11 @@ package object nodescala {
      *  However, it is also non-deterministic -- it may throw or return a value
      *  depending on the current state of the `Future`.
      */
-    def now: T = ???
+    def now: T = f.value match {
+      case Some(Success(v)) => v
+      case Some(Failure(error)) => throw error
+      case None => throw new NoSuchElementException("Future is not ready")
+    }
 
     /** Continues the computation of this future by taking the current future
      *  and mapping it into another future.

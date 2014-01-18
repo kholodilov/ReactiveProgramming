@@ -18,9 +18,70 @@ import org.scalatest.matchers.ShouldMatchers
 @RunWith(classOf[JUnitRunner])
 class NodeScalaSuite extends FunSuite with ShouldMatchers {
 
+  test("A Future should always be created") {
+    val always = Future.always(517)
+
+    always.now should equal (517)
+  }
+
+  test("A Future should always throw exception") {
+    val exception = new RuntimeException("always")
+    val always = Future.alwaysFails(exception)
+
+    always.failed.now should equal (exception)
+  }
+
+  test("A Future should never be created") {
+    val never = Future.never[Int]
+
+    try {
+      Await.ready(never, 1 second)
+      assert(false)
+    } catch {
+      case t: TimeoutException => // ok!
+    }
+  }
+
+  test("delay returns a future that is completed after specified time") {
+    val delayFuture = Future.delay(1900 millis)
+
+    try {
+      Await.ready(delayFuture, 1 second)
+      assert(false)
+    } catch {
+      case t: TimeoutException => // ok!
+    }
+
+    Await.ready(delayFuture, 1 second)
+  }
+
+  // now
+
+  test("now should return a value if future is completed") {
+    val future = Future.always(123)
+
+    future.now should equal (123)
+  }
+
+  test("now throws NoSuchElementException if future is not completed") {
+    intercept[NoSuchElementException] {
+      val future = Future.delay(1 second)
+      future.now
+    }
+  }
+
+  test("now throws future's exception if future is failed") {
+    intercept[SomeException] {
+      val future = Future.alwaysFails(new SomeException("now failure"))
+      future.now
+    }
+  }
+
+  // ensuring
+
   test("ensuring returns future with the result of current future if another future also succeeds") {
-    val thisFuture = Future { 123 }
-    val thatFuture = Future { 456 }
+    val thisFuture = Future.always(123)
+    val thatFuture = Future.always(456)
 
     val newFuture = thisFuture.ensuring(thatFuture)
 
@@ -28,9 +89,9 @@ class NodeScalaSuite extends FunSuite with ShouldMatchers {
   }
 
   test("ensuring returns future with error if another future fails") {
-    val exception = new RuntimeException("another future fails")
-    val thisFuture = Future { 123 }
-    val thatFuture = Future { throw exception }
+    val exception = new SomeException("another future fails")
+    val thisFuture = Future.always(123)
+    val thatFuture = Future.alwaysFails(exception)
 
     val newFuture = thisFuture.ensuring(thatFuture)
 
@@ -38,9 +99,9 @@ class NodeScalaSuite extends FunSuite with ShouldMatchers {
   }
 
   test("ensuring returns future with error if current future fails") {
-    val exception = new RuntimeException("current future fails")
-    val thisFuture = Future { throw exception }
-    val thatFuture = Future { 456 }
+    val exception = new SomeException("current future fails")
+    val thisFuture = Future.alwaysFails(exception)
+    val thatFuture = Future.always(456)
 
     val newFuture = thisFuture.ensuring(thatFuture)
 
@@ -48,32 +109,17 @@ class NodeScalaSuite extends FunSuite with ShouldMatchers {
   }
 
   test("ensuring returns future with error of another future if both current and another future fail") {
-    val exception1 = new RuntimeException("current future fails")
-    val exception2 = new RuntimeException("another future fails")
-    val thisFuture = Future { throw exception1 }
-    val thatFuture = Future { throw exception2 }
+    val exception1 = new SomeException("current future fails")
+    val exception2 = new SomeException("another future fails")
+    val thisFuture = Future.alwaysFails(exception1)
+    val thatFuture = Future.alwaysFails(exception2)
 
     val newFuture = thisFuture.ensuring(thatFuture)
 
     Await.result(newFuture.failed, 1 second) should equal (exception2)
   }
 
-  test("A Future should always be created") {
-    val always = Future.always(517)
-
-    assert(Await.result(always, 0 nanos) == 517)
-  }
-
-  test("A Future should never be created") {
-    val never = Future.never[Int]
-
-    try {
-      Await.result(never, 1 second)
-      assert(false)
-    } catch {
-      case t: TimeoutException => // ok!
-    }
-  }
+  // cancellation
 
   test("CancellationTokenSource should allow stopping the computation") {
     val cts = CancellationTokenSource()
@@ -192,6 +238,7 @@ class NodeScalaSuite extends FunSuite with ShouldMatchers {
     dummySubscription.unsubscribe()
   }
 
+  case class SomeException(msg: String) extends RuntimeException(msg) { }
 }
 
 
