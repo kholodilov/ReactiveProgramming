@@ -1,6 +1,8 @@
 package nodescala
 
 import scala.language.postfixOps
+import scala.concurrent._
+import ExecutionContext.Implicits.global
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
@@ -36,6 +38,62 @@ class FutureOpsSuite extends FunSuite with ShouldMatchers {
       val future = Future.alwaysFails(new SomeException("now failure"))
       future.now
     }
+  }
+
+  // continueWith
+
+  test("continueWith returns future of result returned by closure") {
+    val future: Future[Int] = Future.always(123)
+
+    val result: Future[String] = future continueWith { f => f.now.toString }
+
+    Await.result(result, 1 second) should equal ("123")
+  }
+
+  test("continueWith returns future of result returned by closure even if original future failed") {
+    val exception = new SomeException("closure fail")
+    val future: Future[Int] = Future.alwaysFails(exception)
+
+    val result: Future[String] = future continueWith { _ => "smth" }
+
+    Await.result(result, 1 second) should equal ("smth")
+  }
+
+  test("continueWith returns future with failure if closure fails") {
+    val exception = new SomeException("closure fail")
+    val future: Future[Int] = Future.always(123)
+
+    val result: Future[String] = future continueWith { f => throw exception }
+
+    Await.result(result.failed, 1 second) should equal (exception)
+  }
+
+  // continue
+
+  test("continue returns future of result returned by closure") {
+    val future: Future[Int] = Future.always(123)
+
+    val result: Future[String] = future continue { f => f.get.toString }
+
+    Await.result(result, 1 second) should equal ("123")
+  }
+
+  test("continue returns future of result returned by closure even if original future failed") {
+    val exception = new SomeException("closure fail")
+    val future: Future[Int] = Future.alwaysFails(exception)
+
+    val result: Future[String] = future continue { _ => "smth" }
+
+    Await.result(result, 1 second) should equal ("smth")
+  }
+
+  test("continue returns future with failure if closure fails") {
+    val exception = new SomeException("closure fail")
+    val future: Future[Int] = Future.always(123)
+
+    val result: Future[String] = future continue { f => throw exception }
+
+    Await.result(result.failed, 1 second) should equal (exception)
   }
 
   // ensuring
